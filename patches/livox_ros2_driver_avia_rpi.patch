@@ -1,0 +1,163 @@
+diff --git a/livox_ros2_driver/CMakeLists.txt b/livox_ros2_driver/CMakeLists.txt
+index 1bb3bea..12f14ee 100644
+--- a/livox_ros2_driver/CMakeLists.txt
++++ b/livox_ros2_driver/CMakeLists.txt
+@@ -30,6 +30,11 @@ find_package(ament_cmake_auto REQUIRED)
+ ament_auto_find_build_dependencies()
+ find_package(PCL REQUIRED)
+ find_package(livox_sdk REQUIRED)
++find_package(pcl_conversions REQUIRED)
++include_directories(
++  ${PCL_INCLUDE_DIRS}
++  /opt/ros/humble/include/pcl_conversions
++)
+ 
+ # check apr
+ find_package(PkgConfig)
+diff --git a/livox_ros2_driver/livox_ros2_driver/lds.cpp b/livox_ros2_driver/livox_ros2_driver/lds.cpp
+index abcca47..0b0e97e 100644
+--- a/livox_ros2_driver/livox_ros2_driver/lds.cpp
++++ b/livox_ros2_driver/livox_ros2_driver/lds.cpp
+@@ -706,6 +706,11 @@ void Lds::StorageRawPacket(uint8_t handle, LivoxEthPacket* eth_packet) {
+           GetEthPacketLen(eth_packet->data_type),
+           packet_statistic->imu_timebase,
+           GetPointsPerPacket(eth_packet->data_type));
++
++      /* Wake distributor immediately for IMU data. */
++      if (semaphore_.GetCount() <= 0) {
++        semaphore_.Signal();
++      }
+     }
+   }
+ }
+diff --git a/livox_ros2_driver/livox_ros2_driver/lds_lidar.cpp b/livox_ros2_driver/livox_ros2_driver/lds_lidar.cpp
+index 405a77e..d47a472 100644
+--- a/livox_ros2_driver/livox_ros2_driver/lds_lidar.cpp
++++ b/livox_ros2_driver/livox_ros2_driver/lds_lidar.cpp
+@@ -119,17 +119,17 @@ int LdsLidar::InitLdsLidar(std::vector<std::string> &broadcast_code_strs,
+     timesync_->StartTimesync();
+   }
+ 
++  /** Set callback context before starting SDK threads */
++  if (g_lds_ldiar == nullptr) {
++    g_lds_ldiar = this;
++  }
++
+   /** Start livox sdk to receive lidar data */
+   if (!Start()) {
+     Uninit();
+     printf("Livox-SDK init fail!\n");
+     return -1;
+   }
+-
+-  /** Add here, only for callback use */
+-  if (g_lds_ldiar == nullptr) {
+-    g_lds_ldiar = this;
+-  }
+   is_initialized_ = true;
+   printf("Livox-SDK init success!\n");
+ 
+@@ -201,7 +201,7 @@ void LdsLidar::OnDeviceBroadcast(const BroadcastDeviceInfo *info) {
+ 
+     LidarDevice *p_lidar = &(g_lds_ldiar->lidars_[handle]);
+     p_lidar->handle = handle;
+-    p_lidar->connect_state = kConnectStateOff;
++    /* Do not reset connect_state on repeated device broadcasts. */
+ 
+     UserRawConfig config;
+     if (g_lds_ldiar->GetRawConfig(info->broadcast_code, config)) {
+@@ -251,6 +251,49 @@ void LdsLidar::OnDeviceChange(const DeviceInfo *info, DeviceEvent type) {
+     p_lidar->info = *info;
+   }
+ 
++  /*
++   * Export current DeviceInfo health on connect/state change.
++   * This gives the monitor an immediate NORMAL status at startup,
++   * while LidarErrorStatusCb continues to update on abnormal-state pushes.
++   */
++  {
++    const LidarErrorCode &health =
++        p_lidar->info.status.status_code.lidar_error_code;
++
++    FILE *health_file = fopen("/dev/shm/livox_avia_health.tmp", "w");
++    if (health_file != NULL) {
++      fprintf(health_file,
++              "sdk_status=0\n"
++              "handle=%u\n"
++              "temp=%u\n"
++              "volt=%u\n"
++              "motor=%u\n"
++              "dirty=%u\n"
++              "firmware=%u\n"
++              "device=%u\n"
++              "fan=%u\n"
++              "self_heating=%u\n"
++              "ptp=%u\n"
++              "time_sync=%u\n"
++              "system=%u\n",
++              handle,
++              health.temp_status,
++              health.volt_status,
++              health.motor_status,
++              health.dirty_warn,
++              health.firmware_err,
++              health.device_status,
++              health.fan_status,
++              health.self_heating,
++              health.ptp_status,
++              health.time_sync_status,
++              health.system_status);
++      fclose(health_file);
++      rename("/dev/shm/livox_avia_health.tmp",
++             "/dev/shm/livox_avia_health");
++    }
++  }
++
+   if (p_lidar->connect_state == kConnectStateOn) {
+     printf("Lidar[%s] status_code[%d] working state[%d] feature[%d]\n",
+            p_lidar->info.broadcast_code,
+@@ -328,6 +371,44 @@ void LdsLidar::LidarErrorStatusCb(livox_status status, uint8_t handle,
+   static uint32_t error_message_count = 0;
+   if (message != NULL) {
+     ++error_message_count;
++
++    /*
++     * Export latest Avia health to RAM-backed shared memory.
++     * temp+rename prevents the monitor from reading a partial record.
++     */
++    FILE *health_file = fopen("/dev/shm/livox_avia_health.tmp", "w");
++    if (health_file != NULL) {
++      fprintf(health_file,
++              "sdk_status=%d\n"
++              "handle=%u\n"
++              "temp=%u\n"
++              "volt=%u\n"
++              "motor=%u\n"
++              "dirty=%u\n"
++              "firmware=%u\n"
++              "device=%u\n"
++              "fan=%u\n"
++              "self_heating=%u\n"
++              "ptp=%u\n"
++              "time_sync=%u\n"
++              "system=%u\n",
++              static_cast<int>(status),
++              handle,
++              message->lidar_error_code.temp_status,
++              message->lidar_error_code.volt_status,
++              message->lidar_error_code.motor_status,
++              message->lidar_error_code.dirty_warn,
++              message->lidar_error_code.firmware_err,
++              message->lidar_error_code.device_status,
++              message->lidar_error_code.fan_status,
++              message->lidar_error_code.self_heating,
++              message->lidar_error_code.ptp_status,
++              message->lidar_error_code.time_sync_status,
++              message->lidar_error_code.system_status);
++      fclose(health_file);
++      rename("/dev/shm/livox_avia_health.tmp",
++             "/dev/shm/livox_avia_health");
++    }
+     if (0 == (error_message_count % 100)) {
+       printf("handle: %u\n", handle);
+       printf("temp_status : %u\n", message->lidar_error_code.temp_status);

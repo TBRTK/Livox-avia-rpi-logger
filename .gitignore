@@ -1,0 +1,12 @@
+build/
+install/
+log/
+*.db3
+*.mcap
+*.bag
+*.log
+*.bak
+*.backup
+*.tmp
+__pycache__/
+.DS_Store
