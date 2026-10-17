@@ -2,6 +2,14 @@
 
 ROS 2 based field logger for Livox Avia running on Raspberry Pi.
 
+This is the software repository for the Raspberry Pi logger and the planned web interface. The current v1.0 provides command-line recording and monitoring; the web interface and API are planned additions in this same repository.
+
+## Companion CAD project
+
+The [Avia 35 mm pole mount CAD repository](https://github.com/TBRTK/avia-pole-mount-public) contains the FreeCAD models, STEP/STL print files, mounting instructions, assembly animation and complete-setup illustration. The [first mount prototype release](https://github.com/TBRTK/avia-pole-mount-public/releases/tag/v1.2.0-prototype.1) provides a complete downloadable ZIP, including the Reach RS4 Pro reference assembly.
+
+## Logger v1.0
+
 Current v1.0 features:
 
 - Livox Avia ROS 2 driver fixes
