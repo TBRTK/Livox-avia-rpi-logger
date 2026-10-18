@@ -41,3 +41,11 @@ Current v1.0 features:
 Logger and monitor v1.0 are tested and ready for field use.
 
 Next milestone: offline FAST-LIO processing of recorded Avia LiDAR + IMU data.
+
+## Support
+
+If this project has been useful to you and you would like to support further testing, documentation, and development, you can buy me a coffee:
+
+[☕ Buy me a coffee](https://buymeacoffee.com/tb_rtk)
+
+Support is completely optional and is greatly appreciated.
