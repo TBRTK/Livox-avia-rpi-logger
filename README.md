@@ -42,6 +42,12 @@ Logger and monitor v1.0 are tested and ready for field use.
 
 Next milestone: offline FAST-LIO processing of recorded Avia LiDAR + IMU data.
 
+## Licensing scope
+
+Original source code authored by Tore Berthelsen (TBRTK) is licensed under GPL-3.0-only. See [LICENSE](LICENSE) and [LICENSING_SCOPE.md](LICENSING_SCOPE.md). Third-party code, manufacturer content, images and CAD retain their existing rights; no new licence over that material is granted.
+
+The software is provided AS IS, without warranty. Warranty exclusions and limitations of liability apply only to the extent permitted by GPLv3 sections 15–17 and applicable law.
+
 ## Support
 
 If this project has been useful to you and you would like to support further testing, documentation, and development, you can buy me a coffee:
@@ -49,3 +55,7 @@ If this project has been useful to you and you would like to support further tes
 [☕ Buy me a coffee](https://buymeacoffee.com/tb_rtk)
 
 Support is completely optional and is greatly appreciated.
+
+## License
+
+See [LICENSE](LICENSE).
